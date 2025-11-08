@@ -1,12 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../polls/state/history_service.dart';
 import '../../polls/widgets/category_section.dart';
 import '../../polls/widgets/confirmation_dialog.dart';
 import '../widgets/empty_history_state.dart';
+import '../../../shared/service_locator.dart';
+import '../../polls/state/history_service.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  late final HistoryService historyService;
+
+  @override
+  void initState() {
+    super.initState();
+    historyService = getIt<HistoryService>();
+  }
 
   Map<String, List<dynamic>> _groupPollsByCategory(List<dynamic> polls) {
     final grouped = <String, List<dynamic>>{};
@@ -24,7 +37,7 @@ class HistoryScreen extends StatelessWidget {
     return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
   }
 
-  void _showClearConfirmationDialog(BuildContext context, HistoryService historyService) {
+  void _showClearConfirmationDialog() {
     showDialog(
       context: context,
       builder: (context) => ConfirmationDialog(
@@ -35,7 +48,7 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
-  void _showResultDialog(BuildContext context, dynamic poll) {
+  void _showResultDialog(dynamic poll) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -108,33 +121,37 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final historyService = Provider.of<HistoryService>(context);
-    final completedPolls = historyService.results;
-    final groupedPolls = _groupPollsByCategory(completedPolls);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('История опросов'),
         backgroundColor: Colors.blue[700],
         actions: [
-          if (completedPolls.isNotEmpty)
+          if (historyService.results.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete),
-              onPressed: () => _showClearConfirmationDialog(context, historyService),
+              onPressed: _showClearConfirmationDialog,
               tooltip: 'Очистить историю',
             ),
         ],
       ),
-      body: completedPolls.isEmpty
-          ? const EmptyHistoryState()
-          : ListView(
-        children: groupedPolls.entries.map((entry) {
-          return CategorySection(
-            category: entry.key,
-            polls: entry.value,
-            onPollTap: (poll) => _showResultDialog(context, poll),
+      body: ListenableBuilder(
+        listenable: historyService,
+        builder: (context, child) {
+          final completedPolls = historyService.results;
+          final groupedPolls = _groupPollsByCategory(completedPolls);
+
+          return completedPolls.isEmpty
+              ? const EmptyHistoryState()
+              : ListView(
+            children: groupedPolls.entries.map((entry) {
+              return CategorySection(
+                category: entry.key,
+                polls: entry.value,
+                onPollTap: (poll) => _showResultDialog(poll),
+              );
+            }).toList(),
           );
-        }).toList(),
+        },
       ),
     );
   }
